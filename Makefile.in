@@ -1,0 +1,136 @@
+PREFIX  := @prefix@
+SHARED  := @shared@
+VARIANT := @variant@
+CPPUNIT := @cppunit@
+
+CC := g++
+AR := ar
+CPPFLAGS := -Wall -D_REENTRANT -D_PTHREADS=1 -Isrc
+LIBS := -lboost_system -lpthread -lm
+
+ifeq ($(VARIANT),trace)
+	CPPFLAGS += -g -O0
+endif
+ifeq ($(VARIANT),debug)
+	CPPFLAGS += -g -O3
+endif
+ifeq ($(VARIANT),release)
+	CPPFLAGS += -g -O3
+endif
+
+ifeq ($(SHARED),yes)
+	LIB_NAME := lib/libares.so
+	CPPFLAGS += -fPIC
+else
+	LIB_NAME := lib/libares.a
+endif
+
+LIB_OBJS := \
+	src/ares/basic_reader.o \
+	src/ares/basic_writer.o \
+	src/ares/bin_util.o \
+	src/ares/buffer.o \
+	src/ares/buffer_formatter.o \
+	src/ares/bytes.o \
+	src/ares/cmdline_arg_parser.o \
+	src/ares/command.o \
+	src/ares/command_queue.o \
+	src/ares/component.o \
+	src/ares/condition.o \
+	src/ares/data_reader.o \
+	src/ares/data_writer.o \
+	src/ares/date.o \
+	src/ares/date_util.o \
+	src/ares/dispatcher.o \
+	src/ares/error.o \
+	src/ares/exception.o \
+	src/ares/file_util.o \
+	src/ares/fixed_allocator.o \
+	src/ares/guard.o \
+	src/ares/http/error.o \
+	src/ares/http/header_table.o \
+	src/ares/http/http.o \
+	src/ares/http/request.o \
+	src/ares/http/request_parser.o \
+	src/ares/job/error.o \
+	src/ares/job/interval.o \
+	src/ares/job/job.o \
+	src/ares/job/job_queue.o \
+	src/ares/job/scheduler.o \
+	src/ares/line_reader.o \
+	src/ares/listener.o \
+	src/ares/log.o \
+	src/ares/math_util.o \
+	src/ares/message_reader.o \
+	src/ares/message_session.o \
+	src/ares/message_writer.o \
+	src/ares/mutex.o \
+	src/ares/net_tk.o \
+	src/ares/packet_reader.o \
+	src/ares/packet_writer.o \
+	src/ares/pid_lock.o \
+	src/ares/platform.o \
+	src/ares/processor.o \
+	src/ares/random.o \
+	src/ares/receiver.o \
+	src/ares/rwlock.o \
+	src/ares/sequence.o \
+	src/ares/server.o \
+	src/ares/service.o \
+	src/ares/session.o \
+	src/ares/shared_ptr.o \
+	src/ares/shared_queue.o \
+	src/ares/sink.o \
+	src/ares/socket.o \
+	src/ares/socket_acceptor.o \
+	src/ares/sockfd_poller.o \
+	src/ares/sockfd_selector.o \
+	src/ares/string_tokenizer.o \
+	src/ares/string_util.o \
+	src/ares/thread.o \
+	src/ares/trace.o \
+	src/ares/utility.o
+
+.PHONY: all test clean
+
+all: $(LIB_NAME) test
+
+lib/libares.a: $(LIB_OBJS)
+	$(AR) rv $@ $(LIB_OBJS)
+	ranlib $@
+
+lib/libares.so: $(LIB_OBJS)
+	$(CC) -shared -o $@ $(LIB_OBJS) $(LIBS)
+
+test: bin/test_receiver bin/test_dispatcher_0
+
+bin/test_receiver: src/test/ares/receiver.o $(LIB_NAME)
+	$(CC) -o $@ $< -lares -Llib $(LIBS)
+
+bin/test_dispatcher_0: src/test/ares/dispatcher_0.o $(LIB_NAME)
+	$(CC) -o $@ $< -lares -Llib $(LIBS)
+
+install: $(LIB_NAME)
+	mkdir -p $(PREFIX)/include/ares
+	mkdir -p $(PREFIX)/include/ares/http
+	mkdir -p $(PREFIX)/include/ares/job
+	mkdir -p $(PREFIX)/lib
+	install src/ares/*.h $(PREFIX)/include/ares
+	install src/ares/http/*.h $(PREFIX)/include/ares/http
+	install src/ares/job/*.h $(PREFIX)/include/ares/job
+	install $(LIB_NAME) $(PREFIX)/lib
+
+clean:
+	-rm -f $(LIB_OBJS) lib/libares.a lib/libares.so
+	-rm -f src/test/ares/*.o
+	-rm -f bin/test_*
+
+depend:
+	$(CC) $(CPPFLAGS) -MM `find src/ares -name \*.cpp` | \
+		cat - > build/deps_lib.mk
+
+ifneq ($(CPPUNIT),no)
+include build/unit_test.mk
+endif
+
+include build/deps_lib.mk
